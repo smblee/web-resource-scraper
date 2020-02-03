@@ -1,19 +1,16 @@
 import os
+
 from selenium import webdriver
 import urllib.request
 import platform
 from textwrap import dedent
+from shutil import which
 
 
 class UrlScraper:
-    def __init__(self, mac_headless_path=None, windows_headless_path=None):
-        _here = os.path.abspath(os.path.dirname(__file__))
-        self.mac_headless_path = mac_headless_path if mac_headless_path else \
-            r'/Applications/Google Chrome Canary.app' \
-            r'/Contents/MacOS/Google Chrome Canary'
-        self.windows_headless_path = windows_headless_path if windows_headless_path else \
-            os.path.join(_here, 'chromedriver.exe')
-        self.headless_path = self._check_selenium_compatibility()
+    def __init__(self, chrome_driver_path=None):
+        self.chrome_driver_path = chrome_driver_path if chrome_driver_path else 'chromedriver'
+        self.chrome_driver_path = self._check_chrome_driver()
 
     def fetch_url_html_with_get(self, url):
         request_headers = {
@@ -33,7 +30,6 @@ class UrlScraper:
             return None
 
     def fetch_url_html_with_selenium(self, url):
-        chromedriver = self.headless_path
         options = webdriver.ChromeOptions()
         options.add_argument('--headless')
         options.add_argument('--disable-extensions')
@@ -41,7 +37,8 @@ class UrlScraper:
         options.add_argument("--no-sandbox")
         options.add_argument('--disable-dev-shm-usage')
         options.add_argument('--disable-browser-side-navigation')
-        browser = webdriver.Chrome(options=options)
+        options.add_argument('--log-level=3')
+        browser = webdriver.Chrome(options=options, executable_path=self.chrome_driver_path)
         try:
             browser.get(url)
         finally:
@@ -49,24 +46,24 @@ class UrlScraper:
             browser.quit()
         return html
 
-    def _check_selenium_compatibility(self):
-        if platform.system() == 'Windows':
-            if not os.path.exists(self.windows_headless_path):
+    def _check_chrome_driver(self):
+        has_chrome_driver_in_path = which(self.chrome_driver_path)
+        if has_chrome_driver_in_path is not None:
+            return self.chrome_driver_path
+        else:
+            if platform.system() == 'Windows':
+                _here = os.path.abspath(os.path.dirname(__file__))
+                default_windows_path = os.path.join(_here, 'chromedriver.exe')
+                if os.path.exists(default_windows_path):
+                    return default_windows_path
                 raise FileNotFoundError(dedent("""\
-                    Chrome Headless browser is not installed.
-                    Install them by pulling the branch (the file should be included in git)
+                    chromedriver is not available in PATH.
+                    Pull the branch down again, or download it to your PATH:
+                    https://chromedriver.chromium.org/downloads
                     """))
-            return self.windows_headless_path
-
-        if platform.system() == 'Darwin':
-            if not os.path.exists(self.mac_headless_path):
+            if platform.system() == 'Darwin':
                 raise FileNotFoundError(dedent("""\
-                    Chrome Headless browser is not installed.
-                    Install them using homebrew:
-                    $ brew cask install chromedriver
-                    $ brew install Caskroom/versions/google-chrome-canary
-                    """))
-            return self.mac_headless_path
-        raise NotImplementedError(
-            "use_selenium option is only supported for Windows/Mac platforms currently." +
-            "Crawling SPA via Selenium is not supported on this platform.")
+                chromedriver is not available in PATH.
+                Install it using homebrew and try again:
+                $ brew cask install chromedriver
+                """))

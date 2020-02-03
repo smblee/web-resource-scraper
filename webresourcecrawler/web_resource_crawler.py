@@ -14,10 +14,9 @@ class WebResourceCrawler:
     def __init__(
             self,
             url,
-            mac_headless_path=None,
-            windows_headless_path=None,
+            chrome_driver_path=None,
             ignore_alternate_rel=True,
-            worker_count=20,
+            worker_count=6,
             worker_timeout_s=20):
         self.url = url
         self.root_url = '{}://{}'.format(urlparse(self.url).scheme,
@@ -27,20 +26,13 @@ class WebResourceCrawler:
         self.processed_urls = set()
         self.queue = Queue()
         self.worker_timeout_s = worker_timeout_s
-        self.url_scraper = UrlScraper(mac_headless_path, windows_headless_path)
+        self.url_scraper = UrlScraper(chrome_driver_path)
         self.ignore_alternate_rel = ignore_alternate_rel
         self.resource_gatherer = ResourceGatherer(urlparse(self.url).netloc)
 
     def run(self, get_only_best_resources=True, use_selenium=False, retry=True):
-        if use_selenium:
-            self.url_scraper._check_selenium_compatibility()
-
-        ext = tldextract.extract(self.url)
-        if not ext.domain or not self._try_add_to_queue(self.url):
-            raise ValueError(
-                f"Failed to initialize WebResourceCrawler." +
-                "'url' ({self.url}) was either incorrectly formed or failed to fetch.")
-
+        # reset the instances in case this is not the first run
+        self._reset_instance()
         self._run_scraper_parallel(use_selenium)
         wait(self.workers)
         print("Gathering results...")
@@ -51,8 +43,6 @@ class WebResourceCrawler:
                     "Did not find any resources."
                     "Trying headless browser with selenium in case"
                     "the website is a SPA (React, Vue, etc.).")
-                self.workers = []
-                self.processed_urls = set()
 
                 return self.run(
                     use_selenium=True,
@@ -63,6 +53,15 @@ class WebResourceCrawler:
                     "did not find any resources. Try increasing `worker_timeout_s` if timed out.")
 
         return json.dumps(results, indent=4)
+
+    def _reset_instance(self):
+        self.workers = []
+        self.processed_urls = set()
+        ext = tldextract.extract(self.url)
+        if not ext.domain or not self._try_add_to_queue(self.url):
+            raise ValueError(
+                f"Failed to initialize WebResourceCrawler." +
+                f"'url' ({self.url}) was either incorrectly formed or failed to fetch.")
 
     def _run_scraper_parallel(self, use_selenium=False):
         while True:
