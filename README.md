@@ -5,7 +5,7 @@ Recursively crawl URL to gather resources such as twitter handle and facebook id
 ### Requirements
 - Python 3 & virtualenv
 - In order to support crawling SPAs (React, Vue, etc.) you must have the necessary files for Chrome headless.
-  - Currently supports windows
+  - Currently supports windows & mac (linux untested)
 
 ### Supports
 - Twitter handle

@@ -17,7 +17,7 @@ class WebResourceCrawler:
             chrome_driver_path=None,
             ignore_alternate_rel=True,
             worker_count=6,
-            worker_timeout_s=20):
+            worker_timeout_s=10):
         self.url = url
         self.root_url = '{}://{}'.format(urlparse(self.url).scheme,
                                          urlparse(self.url).netloc)
@@ -29,6 +29,7 @@ class WebResourceCrawler:
         self.url_scraper = UrlScraper(chrome_driver_path)
         self.ignore_alternate_rel = ignore_alternate_rel
         self.resource_gatherer = ResourceGatherer(urlparse(self.url).netloc)
+        self.done = False
 
     def run(self, get_only_best_resources=True, use_selenium=False, retry=True):
         # reset the instances in case this is not the first run
@@ -60,11 +61,12 @@ class WebResourceCrawler:
         ext = tldextract.extract(self.url)
         if not ext.domain or not self._try_add_to_queue(self.url):
             raise ValueError(
-                f"Failed to initialize WebResourceCrawler." +
-                f"'url' ({self.url}) was either incorrectly formed or failed to fetch.")
+                f"Failed to initialize WebResourceCrawler."
+                f"url ({self.url}) was either incorrectly formed or failed to fetch.")
+        self.done = False
 
     def _run_scraper_parallel(self, use_selenium=False):
-        while True:
+        while True and not self.done:
             try:
                 current_url = self.queue.get(timeout=self.worker_timeout_s)
                 if current_url in self.processed_urls:
@@ -74,6 +76,7 @@ class WebResourceCrawler:
                     self._process_url, current_url, use_selenium)
                 self.workers.append(job)
             except Empty:
+                self.done = True
                 print(
                     f"Queue timed out after {self.worker_timeout_s} seconds.")
                 return
@@ -112,6 +115,10 @@ class WebResourceCrawler:
         print(
             f"Processing URL: {url} " +
             f"({'can be slow due to headless browser method' if with_selenium else 'GET mode'})")
+        if self.done:
+            print(f"exiting early for '{url}' due to global timeout. "
+                  f"If this is unexpected, raise the worker_timeout_s")
+            return
         url_html = self.url_scraper.fetch_url_html_with_get(url) if not with_selenium \
             else self.url_scraper.fetch_url_html_with_selenium(url)
         if url_html:
