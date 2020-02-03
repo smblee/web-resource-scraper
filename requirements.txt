@@ -1,0 +1,8 @@
+pytest
+pycodestyle
+bs4
+requests
+tldextract
+validator_collection
+selenium
+fuzzywuzzy
